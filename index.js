@@ -46,7 +46,7 @@ got.stream(downloadUrl)
     extract(path.join(__dirname, outFile), __dirname)
       .then(function() {
         if (platform === 'win32') {
-          return copyExecutable();
+          return linkExecutable();
         }
       })
       .then(function(){
@@ -75,9 +75,8 @@ function extract(archivePath, targetDirectoryPath) {
   }
 }
 
-function copyExecutable() {
-  process.stdout.write('Copying... ');
-
+function linkExecutable() {
+  process.stdout.write('Linking... ');
   var exeDir;
 
   try {
@@ -87,17 +86,17 @@ function copyExecutable() {
   }
 
   if (exeDir) {
-    return copyFile(path.join(__dirname, executable), path.join(exeDir, executable));
+    return new Promise(function(resolve, reject) {
+      try {
+        spawnSync('cmd', [ '/C', 'mklink', path.join(exeDir, executable), path.join(__dirname, executable) ], { encoding: 'utf8' });
+        resolve();
+      }
+      catch (ex) {
+        console.error(ex);
+        reject();
+      }
+    });
   }
-}
 
-function copyFile(source, target) {
-  return new Promise(function(resolve, reject) {
-    var readStream = fs.createReadStream(source);
-    readStream.on("error", reject);
-    var writeStream = fs.createWriteStream(target);
-    writeStream.on("error", reject);
-    writeStream.on("close", resolve);
-    readStream.pipe(writeStream);
-  });
+  return Promise.resolve();
 }
