@@ -13,17 +13,15 @@ if (platform === 'win32') {
     exeDir = spawnSync('npm.cmd', ['bin', '-g'], { encoding: 'utf8' }).stdout.trim();
   } catch (ex) {
     console.error('Error searching for NPM binary directory: ' + ex);
-    console.error('You may need to manually remove geckodriver.exe.');
+    console.error('You may need to manually find and remove geckodriver.exe.');
   }
 
   if (exeDir) {
-    fs.unlink(path.join(exeDir, executable), function(err) {
-      if (err) {
-        console.error('Error removing geckodriver.exe: ' + err);
-        console.error('You may need to manually remove it.');
-        return;
-      }
-      console.log('Removed geckodriver.exe.');
-    });
+    var exePath = path.join(exeDir, executable);
+    try {
+      fs.unlinkSync(exePath);
+    } catch (ex) {
+      console.error('Error removing ' + exePath + ': ' + ex);
+    }
   }
 }

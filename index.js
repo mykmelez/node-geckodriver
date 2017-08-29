@@ -46,7 +46,14 @@ got.stream(downloadUrl)
     extract(path.join(__dirname, outFile), __dirname)
       .then(function() {
         if (platform === 'win32') {
-          return linkExecutable();
+          process.stdout.write('Linking... ');
+          try {
+            linkExecutable();
+          }
+          catch(ex) {
+            // Currently we only warn rather than failing to install.
+            console.warn("Failed to link geckodriver.exe: " + ex);
+          }
         }
       })
       .then(function(){
@@ -76,27 +83,33 @@ function extract(archivePath, targetDirectoryPath) {
 }
 
 function linkExecutable() {
-  process.stdout.write('Linking... ');
-  var exeDir;
+  // Get NPM's bin directory, which is where we'll create the link.
+  var result =
+    spawnSync('npm.cmd', ['bin', '-g'], { encoding: 'utf8' });
 
-  try {
-    exeDir = spawnSync('npm.cmd', ['bin', '-g'], { encoding: 'utf8' }).stdout.trim();
-  } catch(ex) {
-    process.stderr.write(ex);
+  if (result.status !== 0) {
+    throw new Error(result.stderr.trim());
   }
 
-  if (exeDir) {
-    return new Promise(function(resolve, reject) {
-      try {
-        spawnSync('cmd', [ '/C', 'mklink', path.join(exeDir, executable), path.join(__dirname, executable) ], { encoding: 'utf8' });
-        resolve();
-      }
-      catch (ex) {
-        console.error(ex);
-        reject();
-      }
-    });
+  var exeDir = result.stdout.trim();
+  var target = path.join(exeDir, executable);
+  var source = path.join(__dirname, executable);
+
+  // If geckodriver.exe already exists in the NPM bin directory,
+  // remove it before we link it to our own instance.  Otherwise,
+  // linking will fail with:
+  //   Error: Cannot create a file when that file already exists.
+  if (fs.existsSync(target)) {
+    fs.unlinkSync(target);
   }
 
-  return Promise.resolve();
+  // Strangely, fs.symlinkSync fails with EPERM: operation not permitted,
+  // although cmd.exe's mklink command works.  Thus we use the latter.
+  // fs.symlinkSync(path.join(__dirname, executable), path.join(exeDir, executable));
+  var result =
+    spawnSync('cmd', ['/C', 'mklink', target, source], { encoding: 'utf8' });
+
+  if (result.status !== 0) {
+    throw new Error(result.stderr.trim());
+  }
 }
